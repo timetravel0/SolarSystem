@@ -1,0 +1,24 @@
+{
+  "name": "solar_system",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack"
+  },
+  "dependencies": {
+    "@tweenjs/tween.js": "^23.1.2",
+    "astronomia": "^4.1.1",
+    "cannon": "^0.6.2",
+    "three": "^0.130.1",
+    "tween": "^0.9.0",
+    "tween.js": "^16.6.0",
+    "tweenjs": "^1.0.2"
+  },
+  "devDependencies": {
+    "webpack": "^5.92.1",
+    "webpack-cli": "^4.10.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
