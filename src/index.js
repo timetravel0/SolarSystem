@@ -10,32 +10,162 @@ import vsop87Bsaturn from 'astronomia/data/vsop87Bsaturn';
 import vsop87Buranus from 'astronomia/data/vsop87Buranus';
 import vsop87Bneptune from 'astronomia/data/vsop87Bneptune';
 import * as TWEEN from '@tweenjs/tween.js';
+import * as CANNON from 'cannon';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 
 // Set up Three.js scene
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
 // Add orbit controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableRotate = true;
 
+// Lighting
+const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
+scene.add(ambientLight);
+
+const pointLight = new THREE.PointLight(0xffffff, 2, 1000);
+pointLight.position.set(0, 0, 0);
+pointLight.castShadow = true;
+scene.add(pointLight);
+
 const RADIUS = 1; // Assign a constant radius for visibility
+
+// Starfield
+function createStarfield() {
+  const starGeometry = new THREE.BufferGeometry();
+  const starMaterial = new THREE.PointsMaterial({ color: 0x888888 });
+
+  const starVertices = [];
+  for (let i = 0; i < 1000000; i++) {
+    const x = THREE.MathUtils.randFloatSpread(200000);
+    const y = THREE.MathUtils.randFloatSpread(200000);
+    const z = THREE.MathUtils.randFloatSpread(200000);
+    starVertices.push(x, y, z);
+  }
+  starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starVertices, 3));
+
+  const stars = new THREE.Points(starGeometry, starMaterial);
+  scene.add(stars);
+}
+createStarfield();
+
+// Bloom Effect
+const ENTIRE_SCENE = 0, BLOOM_SCENE = 1;
+const bloomLayer = new THREE.Layers();
+bloomLayer.set(BLOOM_SCENE);
+const materials = {};
+const darkMaterial = new THREE.MeshBasicMaterial({ color: 'black' });
+
+const renderScene = new RenderPass(scene, camera);
+
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+bloomPass.threshold = 0;
+bloomPass.strength = 4;
+bloomPass.radius = 2;
+
+const bloomComposer = new EffectComposer(renderer);
+bloomComposer.addPass(renderScene);
+bloomComposer.addPass(bloomPass);
+
+const finalPass = new ShaderPass(
+  new THREE.ShaderMaterial({
+    uniforms: {
+      baseTexture: { value: null },
+      bloomTexture: { value: bloomComposer.renderTarget2.texture }
+    },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D baseTexture;
+      uniform sampler2D bloomTexture;
+      varying vec2 vUv;
+      void main() {
+        gl_FragColor = (texture2D(baseTexture, vUv) + vec4(1.0) * texture2D(bloomTexture, vUv));
+      }
+    `,
+    defines: {}
+  }), 'baseTexture'
+);
+
+const finalComposer = new EffectComposer(renderer);
+finalComposer.addPass(renderScene);
+finalComposer.addPass(finalPass);
+
+function renderBloom(mask) {
+  if (mask === true) {
+    scene.traverse(darkenNonBloomed);
+    bloomComposer.render();
+    scene.traverse(restoreMaterial);
+  } else {
+    camera.layers.set(BLOOM_SCENE);
+    bloomComposer.render();
+    camera.layers.set(ENTIRE_SCENE);
+  }
+}
+
+function darkenNonBloomed(obj) {
+  if (obj.isMesh && bloomLayer.test(obj.layers) === false) {
+    materials[obj.uuid] = obj.material;
+    obj.material = darkMaterial;
+  }
+}
+
+function restoreMaterial(obj) {
+  if (materials[obj.uuid]) {
+    obj.material = materials[obj.uuid];
+    delete materials[obj.uuid];
+  }
+}
+
+// Create a physics world
+const world = new CANNON.World();
+world.gravity.set(0, 0, 0);
+
+// Array to store body data
+const bodies = [];
+
+// Array to store labels
+const labels = [];
+const orbitLines = [];
+
+// Reference to labels container
+const labelsContainer = document.getElementById('labels-container');
 
 // Solar system data (scaled for visualization)
 const solarSystem = [
-  { name: 'Sun', radius: RADIUS * 5, distance: 0, color: 0xffff00, mass: 1.989e30, speed: 0 },
-  { name: 'Mercury', radius: RADIUS * 0.383, distance: 10, color: 0x8c7c6e, mass: 3.285e23, speed: 47.87 },
-  { name: 'Venus', radius: RADIUS * 0.949, distance: 20, color: 0xe39e1c, mass: 4.867e24, speed: 35.02 },
-  { name: 'Earth', radius: RADIUS, distance: 30, color: 0x6b93d6, mass: 5.972e24, speed: 29.78 },
-  { name: 'Mars', radius: RADIUS * 0.532, distance: 45, color: 0xc1440e, mass: 6.39e23, speed: 24.07 },
-  { name: 'Jupiter', radius: RADIUS * 11.21, distance: 78, color: 0xd8ca9d, mass: 1.898e27, speed: 13.07 },
-  { name: 'Saturn', radius: RADIUS * 9.45, distance: 142, color: 0xead6b8, mass: 5.683e26, speed: 9.69 },
-  { name: 'Uranus', radius: RADIUS * 4.01, distance: 287, color: 0xd1e7e7, mass: 8.681e25, speed: 6.81 },
-  { name: 'Neptune', radius: RADIUS * 3.88, distance: 450, color: 0x3b66cc, mass: 1.024e26, speed: 5.43 },
+  { name: 'Sun', radius: RADIUS * 5, distance: 0, color: 0xffff00, mass: 1.989e30, speed: 0, texture: 'textures/2k_sun.jpg' },
+  { name: 'Mercury', radius: RADIUS * 0.383, distance: 10, color: 0x8c7c6e, mass: 3.285e23, speed: 47.87, texture: 'textures/2k_mercury.jpg' },
+  { name: 'Venus', radius: RADIUS * 0.949, distance: 20, color: 0xe39e1c, mass: 4.867e24, speed: 35.02, texture: 'textures/2k_venus_surface.jpg' },
+  { name: 'Earth', radius: RADIUS, distance: 30, color: 0x6b93d6, mass: 5.972e24, speed: 29.78, texture: 'textures/2k_earth_daymap.jpg' },
+  { name: 'Mars', radius: RADIUS * 0.532, distance: 45, color: 0xc1440e, mass: 6.39e23, speed: 24.07, texture: 'textures/2k_mars.jpg' },
+  { name: 'Jupiter', radius: RADIUS * 11.21, distance: 78, color: 0xd8ca9d, mass: 1.898e27, speed: 13.07, texture: 'textures/2k_jupiter.jpg' },
+  { name: 'Saturn', radius: RADIUS * 9.45, distance: 142, color: 0xead6b8, mass: 5.683e26, speed: 9.69, texture: 'textures/2k_saturn.jpg' },
+  { name: 'Uranus', radius: RADIUS * 4.01, distance: 287, color: 0xd1e7e7, mass: 8.681e25, speed: 6.81, texture: 'textures/2k_uranus.jpg' },
+  { name: 'Neptune', radius: RADIUS * 3.88, distance: 450, color: 0x3b66cc, mass: 1.024e26, speed: 5.43, texture: 'textures/2k_neptune.jpg' },
 ];
+
+const moon = { name: 'Moon', radius: RADIUS * 0.2727, distance: 0.00257, color: 0xffffff, mass: 7.342e22, speed: 1.022, parent: 'Earth', texture: 'textures/2k_moon.jpg' };
+
+// Function to calculate Julian Date
+function toJulianDate(date) {
+  return date.getTime() / 86400000.0 + 2440587.5;
+}
+
+let JD = toJulianDate(new Date());
 
 // Create instances for each planet's VSOP87 data
 const vsop87Data = {
@@ -46,15 +176,8 @@ const vsop87Data = {
   jupiter: new Planet(vsop87Bjupiter),
   saturn: new Planet(vsop87Bsaturn),
   uranus: new Planet(vsop87Buranus),
-  neptune: new Planet(vsop87Bneptune),
+  neptune: new Planet(vsop87Bneptune)
 };
-
-let JD = toJulianDate(new Date());
-
-// Function to calculate Julian Date
-function toJulianDate(date) {
-  return date.getTime() / 86400000.0 + 2440587.5;
-}
 
 // Function to get the planet's current position in AU
 function getPlanetPosition(name, JD) {
@@ -69,32 +192,63 @@ function getPlanetPosition(name, JD) {
     y: 0,
     z: position.range * Math.sin(position.lon),
     range: position.range,
-    lon: position.lon,
+    lon: position.lon
   };
 }
 
-// Add the Moon orbiting Earth
-const moon = { name: 'Moon', radius: RADIUS * 0.2727, distance: 0.00257, color: 0xffffff, mass: 7.342e22, speed: 1.022, parent: 'Earth' };
+// Function to calculate distance between two positions in AU
+function calculateDistance(pos1, pos2) {
+  const dx = pos1.x - pos2.x;
+  const dy = pos1.y - pos2.y;
+  const dz = pos1.z - pos2.z;
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
 
 const G = 6.67430e-11; // Gravitational constant
 const timeScale = 1e-2; // Significantly reduced time scale for slower updates
 
 // Create celestial bodies
-const bodies = [];
-const labels = [];
-const orbitLines = [];
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-const labelsContainer = document.getElementById('labels-container');
-
 // Function to create and add a celestial body
 function createBody(planetData, parentBody = null) {
+  const textureLoader = new THREE.TextureLoader();
+  const texture = textureLoader.load(planetData.texture);
+
   const geometry = new THREE.SphereGeometry(planetData.radius, 32, 32);
-  const material = new THREE.MeshBasicMaterial({ color: planetData.color });
+  const material = new THREE.MeshStandardMaterial({ map: texture });
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
   scene.add(mesh);
+
+  // Add to bloom layer
+  mesh.layers.enable(BLOOM_SCENE);
+
+  // Physics body
+  const shape = new CANNON.Sphere(planetData.radius);
+  const body = new CANNON.Body({
+    mass: planetData.mass,
+    position: new CANNON.Vec3(mesh.position.x, mesh.position.y, mesh.position.z),
+    shape,
+  });
+  world.addBody(body);
+
+  // Add rings for Saturn
+  if (planetData.name === 'Saturn') {
+    const ringGeometry = new THREE.RingGeometry(RADIUS * 10, RADIUS * 20, 32);
+    const ringMaterial = new THREE.MeshStandardMaterial({
+      map: textureLoader.load('textures/2k_saturn_ring_alpha.png'),
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.6
+    });
+    const ringMesh = new THREE.Mesh(ringGeometry, ringMaterial);
+    ringMesh.rotation.x = Math.PI / 2;
+    mesh.add(ringMesh);
+  }
 
   let position;
   if (planetData.name === 'Sun') {
@@ -131,9 +285,9 @@ function createBody(planetData, parentBody = null) {
     Math.cos(position.lon) * planetData.speed
   ) : new THREE.Vector3(0, 0, 0);
 
-  const body = { mesh, mass: planetData.mass, velocity, radius: planetData.radius, data: planetData, parent: parentBody };
+  const bodyData = { mesh, mass: planetData.mass, velocity, radius: planetData.radius, data: planetData, parent: parentBody };
 
-  bodies.push(body);
+  bodies.push(bodyData);
 
   // Create label
   const labelDiv = document.createElement('div');
@@ -143,7 +297,7 @@ function createBody(planetData, parentBody = null) {
   labelDiv.style.color = 'white';
   labelDiv.style.pointerEvents = 'none'; // Prevent label from blocking mouse events
   labelsContainer.appendChild(labelDiv);
-  labels.push({ element: labelDiv, body });
+  labels.push({ element: labelDiv, body: bodyData });
 
   // Create orbit line
   if (position && planetData.name !== 'Moon') {
@@ -162,7 +316,7 @@ function createBody(planetData, parentBody = null) {
     orbitLines.push(orbitLine);
   }
 
-  return body;
+  return bodyData;
 }
 
 // Create celestial bodies
@@ -249,7 +403,8 @@ function animate() {
   updateLabels();
 
   controls.update();
-  renderer.render(scene, camera);
+  renderBloom(true);
+  finalComposer.render();
 }
 
 animate();
@@ -259,6 +414,8 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  bloomComposer.setSize(window.innerWidth, window.innerHeight);
+  finalComposer.setSize(window.innerWidth, window.innerHeight);
 });
 
 // Handle mouse click
@@ -287,11 +444,16 @@ function onMouseClick(event) {
 
 function updateInfoPanel(planetData) {
   const infoPanel = document.getElementById('info-panel');
+  const earthPosition = getPlanetPosition('Earth', JD);
+  const planetPosition = getPlanetPosition(planetData.name, JD);
+  const distanceToEarth = planetPosition && earthPosition ? calculateDistance(earthPosition, planetPosition).toFixed(2) : 'N/A';
+
   infoPanel.innerHTML = `
     <h3>${planetData.name}</h3>
     <p>Mass: ${planetData.mass.toExponential(2)} kg</p>
-    <p>Distance from Sun: ${planetData.distance.toFixed(2)} million km</p>
-    <p>Radius: ${(planetData.radius / 5).toFixed(4)} Earth radii</p>
+    <p>Distance from Sun: ${(planetData.distance).toFixed(2)} AU</p>
+    <p>Distance to Earth: ${distanceToEarth} AU</p>
+    <p>Radius: ${(planetData.radius / RADIUS).toFixed(4)} Earth radii</p>
     <p>Orbital Speed: ${planetData.speed.toFixed(2)} km/s</p>
   `;
 }
@@ -376,3 +538,10 @@ function animateTween() {
   TWEEN.update();
 }
 animateTween();
+
+// Start with the Sun selected and zoomed in
+zoomToPlanet('Sun');
+const sunBody = bodies.find(body => body.data.name === 'Sun');
+if (sunBody) {
+  updateInfoPanel(sunBody.data);
+}
