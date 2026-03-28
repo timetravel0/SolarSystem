@@ -1,55 +1,46 @@
-# Solar System Simulation
+# SolarSystem Workspace
 
-## Overview
+Workspace contenente un solo progetto frontend 3D per la simulazione del sistema solare.
 
-This project is a 3D simulation of the solar system using Three.js, Cannon.js, and astronomy data from the VSOP87 model. It visualizes the positions and movements of the planets and their moons, providing an interactive and educational tool to explore our solar system. The simulation includes features like realistic textures, bloom effects, and gravitational physics.
+## Progetto incluso
 
-## Features
+| Progetto | Path | Tipo | Stack principale |
+|---|---|---|---|
+| SolarSystem | `.` | frontend / single-page app | Three.js, Cannon.js, Astronomia, TWEEN.js, Webpack |
 
-- **Realistic 3D Visualization**: Uses high-quality textures for planets and moons.
-- **Interactive Controls**: Rotate, zoom, and pan around the solar system using mouse controls.
-- **Planetary Information**: Displays detailed information about each planet, including mass, distance from the Sun, distance to Earth, radius, and orbital speed.
-- **Date Picker**: Set a specific date to see the positions of the planets on that date.
-- **Planet Zoom**: Click on a planet or select it from the dropdown menu to zoom in and center the camera on it.
-- **Bloom Effect**: Enhances the visual appeal with a bloom effect around bright objects like the Sun.
-- **Gravitational Physics**: Simulates gravitational interactions between planets and their moons.
+## Come orientarsi
 
-## Installation
+- `src/index.js` contiene tutto il bootstrap applicativo, la scena 3D, l'overlay DOM e la logica di simulazione.
+- `webpack.config.js` definisce l'entrypoint e l'output del bundle.
+- `dist/index.html` è il file HTML statico che ospita il bundle generato.
+- `docs/` contiene la documentazione operativa e di analisi generata per questo workspace.
 
-1. Clone the repository:
-   ```
-   git clone https://github.com/timetravel0/SolarSystem.git
-   cd solar-system-simulation
-   ```
-2. Install the dependencies:
-   ```
-   npm install
-   ```
-3. Run the application:
-   ```
-   npm run build
-   ```
-   Open your browser and navigate to http://localhost:3000.
+## Documentazione principale
 
-## Usage
-- **Rotate the view**: Click and drag the mouse.
-- **Zoom in/out**: Use the mouse wheel.
-- **Pan the view**: Right-click and drag the mouse.
-- **Select a planet**: Use the dropdown menu in the top bar or click on a planet.
-- **Set a specific date**: Use the date picker in the top bar.
-- **View planet information**: Click on a planet to display its details in the information panel.
+- `docs/WORKSPACE_OVERVIEW.md`
+- `docs/README_PROJECT.md`
+- `docs/FUNCTIONAL_ANALYSIS.md`
+- `docs/TECHNICAL_ANALYSIS.md`
+- `docs/DEPLOYMENT.md`
+- `docs/IMPROVEMENT_ROADMAP.md`
+- `docs/TESTING_STRATEGY.md`
+- `docs/SECURITY_NOTES.md`
+- `AGENTS.md`
 
-## Technologies Used
-- Three.js: A JavaScript library for creating 3D graphics.
-- Cannon.js: A physics engine for simulating gravitational interactions.
-- Astronomia: A library for astronomical calculations based on the VSOP87 model.
-- TWEEN.js: A tweening library for smooth animations.
-- Webpack: A module bundler for JavaScript.
+## Avvio rapido
 
-## Contributing
-Contributions are welcome! Please feel free to submit a pull request or open an issue with your suggestions.
+```bash
+npm install
+npm run build
+```
 
+Il repository non definisce uno script dedicato per il server locale. La build produce `dist/bundle.js` e il frontend va servito come contenuto statico insieme a `dist/index.html`.
 
+## Confini del workspace
 
+- `node_modules/`, `dist/`, `build/`, `coverage/` e cartelle simili sono output o dipendenze e non vanno trattati come sorgente applicativa.
+- Non risultano altri progetti software nel workspace corrente.
 
+## Stato dell'analisi
 
+La documentazione in `docs/` riflette il codice reale presente nel repository. Alcuni asset referenziati dal codice, in particolare la cartella `textures/`, non risultano tracciati nel workspace e sono quindi da considerare dipendenza esterna o assente da validare.
